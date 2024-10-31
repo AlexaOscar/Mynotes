@@ -157,7 +157,7 @@ cd ~/llamaindex_demo
 touch llamaindex_internlm_api.py
 ```
 
-打开 llamaindex_internlm_api.py 贴入以下代码
+打开 llamaindex_internlm_api.py 贴入以下代码，注意把自己的API KEY填入
 
 ```python
 from llama_index.core.llms import ChatMessage
@@ -210,8 +210,7 @@ conda install pytorch==2.1.2 -c pytorch -c nvidia
 
 
 结果为：
-
-图片1
+![img_v3_02g7_2afde318-386d-41ee-a7d1-f8dc3ea72f7g](https://github.com/user-attachments/assets/0f5db5b1-c618-4fcf-9117-f286deacf0d3)
 
 回答的效果并不好，并不是我们想要的 xtuner。
 
@@ -245,46 +244,72 @@ mv xtuner/README_zh-CN.md ./
 
 ```bash
 cd ~/llamaindex_demo
-touch llamaindex_RAG.py
+touch llamaindex_RAG_api.py
 ```
 
-打开`llamaindex_RAG.py`贴入以下代码
+打开`llamaindex_RAG_api.py`贴入以下代码，注意把自己的API Key填入
 
 ```python
 
-from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings
-
+import requests
+from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-from llama_index.llms.huggingface import HuggingFaceLLM
+from llama_index.core.settings import Settings
+import json
 
-#初始化一个HuggingFaceEmbedding对象，用于将文本转换为向量表示
+# 禁用全局LLM设置中的OpenAI，不然会报错
+Settings.llm = None
+
+# 初始化嵌入模型
 embed_model = HuggingFaceEmbedding(
-#指定了一个预训练的sentence-transformer模型的路径
     model_name="/root/model/sentence-transformer"
 )
-#将创建的嵌入模型赋值给全局设置的embed_model属性，
-#这样在后续的索引构建过程中就会使用这个模型。
-Settings.embed_model = embed_model
 
-llm = HuggingFaceLLM(
-    model_name="/root/model/internlm2-chat-1_8b",
-    tokenizer_name="/root/model/internlm2-chat-1_8b",
-    model_kwargs={"trust_remote_code":True},
-    tokenizer_kwargs={"trust_remote_code":True}
-)
-#设置全局的llm属性，这样在索引查询时会使用这个模型。
-Settings.llm = llm
-
-#从指定目录读取所有文档，并加载数据到内存中
+# 从指定目录读取所有文档，并加载数据到内存中
 documents = SimpleDirectoryReader("/root/llamaindex_demo/data").load_data()
-#创建一个VectorStoreIndex，并使用之前加载的文档来构建索引。
-# 此索引将文档转换为向量，并存储这些向量以便于快速检索。
-index = VectorStoreIndex.from_documents(documents)
-# 创建一个查询引擎，这个引擎可以接收查询并返回相关文档的响应。
-query_engine = index.as_query_engine()
-response = query_engine.query("xtuner是什么?")
 
-print(response)
+# 创建一个VectorStoreIndex，指定使用自己的嵌入模型
+index = VectorStoreIndex.from_documents(documents, embed_model=embed_model)
+
+# 创建一个查询引擎用于本地文档查询，并禁用LLM
+query_engine = index.as_query_engine(llm=None)
+
+# 准备查询的问题
+question = "xtuner是什么?"
+local_response = query_engine.query(question)
+
+# 将响应转变为字符串形式
+local_response_str = str(local_response)
+
+# print("本地查询结果:", local_response_str)
+
+# 使用自定义API进行外部查询
+url = "https://internlm-chat.intern-ai.org.cn/puyu/api/v1/chat/completions"
+payload = {
+    "model": "internlm2.5-latest",
+    "messages": [{"role": "user", "content": "对以下问题和片段进行总结"+ question + " " + local_response_str}],
+    "n": 1,
+    "temperature": 0.8,
+    "top_p": 0.9
+}
+headers = {
+    "Authorization": "Bearer eyJ0eXBlIjoiSldUIiwiYWxnIjoiSFM1MTIifQXXXXXXXXXXXX",  # 使用你的实际API令牌代替
+    "Content-Type": "application/json"
+}
+response = requests.post(url, data=json.dumps(payload), headers=headers)
+
+# 打印原始响应，以便调试
+# print(response.text)
+
+# 解析JSON响应并直接提取content
+try:
+    response_json = response.json()
+    content = response_json['choices'][0]['message']['content']
+    print(content)
+except Exception as e:
+    print(f"Error extracting content: {str(e)}")
+
+
 ```
 
 之后运行
@@ -292,11 +317,12 @@ print(response)
 ```bash
 conda activate llamaindex
 cd ~/llamaindex_demo/
-python llamaindex_RAG.py
+python llamaindex_RAG_api.py
 ```
 
 结果为：
-![image](https://github.com/Shengshenlan/tutorial/assets/57640594/8d363e3f-edf9-4573-bd58-5b54fd8981df)
+![image](https://github.com/user-attachments/assets/2ac7d3f8-24eb-4a17-a955-fac81cb2b588)
+
 
 借助 RAG 技术后，就能获得我们想要的答案了。
 
