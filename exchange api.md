@@ -150,6 +150,9 @@ unzip averaged_perceptron_tagger.zip
 登录浦语官网相关页面，创建新的API Token key
 https://internlm.intern-ai.org.cn/api/tokens
 
+![image](https://github.com/user-attachments/assets/fd649a0f-73ef-49f1-8aa6-59449b4655e1)
+
+
 运行以下指令，新建一个 python 文件
 
 ```bash
