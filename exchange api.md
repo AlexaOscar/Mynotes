@@ -214,7 +214,7 @@ conda install pytorch==2.1.2 -c pytorch -c nvidia
 
 回答的效果并不好，并不是我们想要的 xtuner。
 
-## 4. LlamaIndex RAG
+## 4. LlamaIndex RAG 调用浦语API
 
 安装 `LlamaIndex` 词嵌入向量依赖
 
