@@ -147,8 +147,9 @@ unzip averaged_perceptron_tagger.zip
 
 ## 3. LlamaIndex 调用浦语API
 
-登录浦语官网相关页面，创建新的API Token key
+登录浦语官网相关页面
 https://internlm.intern-ai.org.cn/api/tokens
+创建新的API Token key
 
 ![image](https://github.com/user-attachments/assets/fd649a0f-73ef-49f1-8aa6-59449b4655e1)
 
