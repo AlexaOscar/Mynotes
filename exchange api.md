@@ -342,107 +342,98 @@ pip install streamlit==1.36.0
 
 ```bash
 cd ~/llamaindex_demo
-touch app.py
+touch app_api.py
 ```
 
-打开`app.py`贴入以下代码
+打开`app_api.py`贴入以下代码，注意把自己的API Key填入
 
 ```python
-import streamlit as st
-from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings
+import requests
+from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-from llama_index.llms.huggingface import HuggingFaceLLM
+from llama_index.core.settings import Settings
+import json
 
-st.set_page_config(page_title="llama_index_demo", page_icon="🦜🔗")
-st.title("llama_index_demo")
+# 禁用全局LLM设置中的OpenAI，不然会报错
+Settings.llm = None
 
-# 初始化模型
-@st.cache_resource
-def init_models():
-    embed_model = HuggingFaceEmbedding(
-        model_name="/root/model/sentence-transformer"
-    )
-    Settings.embed_model = embed_model
+# 初始化嵌入模型
+embed_model = HuggingFaceEmbedding(
+    model_name="/root/model/sentence-transformer"
+)
 
-    llm = HuggingFaceLLM(
-        model_name="/root/model/internlm2-chat-1_8b",
-        tokenizer_name="/root/model/internlm2-chat-1_8b",
-        model_kwargs={"trust_remote_code": True},
-        tokenizer_kwargs={"trust_remote_code": True}
-    )
-    Settings.llm = llm
+# 从指定目录读取所有文档，并加载数据到内存中
+documents = SimpleDirectoryReader("/root/llamaindex_demo/data").load_data()
 
-    documents = SimpleDirectoryReader("/root/llamaindex_demo/data").load_data()
-    index = VectorStoreIndex.from_documents(documents)
-    query_engine = index.as_query_engine()
+# 创建一个VectorStoreIndex，指定使用自己的嵌入模型
+index = VectorStoreIndex.from_documents(documents, embed_model=embed_model)
 
-    return query_engine
+# 创建一个查询引擎用于本地文档查询，并禁用LLM
+query_engine = index.as_query_engine(llm=None)
 
-# 检查是否需要初始化模型
-if 'query_engine' not in st.session_state:
-    st.session_state['query_engine'] = init_models()
+# 准备查询的问题
+question = "xtuner是什么?"
+local_response = query_engine.query(question)
 
-def greet2(question):
-    response = st.session_state['query_engine'].query(question)
-    return response
+# 将响应转变为字符串形式假如可能的方法是local_response.text或local_response.content
+local_response_str = str(local_response) # 或者 local_response.text 或其他可以获取内容的属性或方法
+
+# print("本地查询结果:", local_response_str)
+
+# 使用自定义API进行外部查询
+url = "https://internlm-chat.intern-ai.org.cn/puyu/api/v1/chat/completions"
+payload = {
+    "model": "internlm2.5-latest",
+    "messages": [{"role": "user", "content": "对以下问题和片段进行总结"+ question + " " + local_response_str}],
+    "n": 1,
+    "temperature": 0.8,
+    "top_p": 0.9
+}
+headers = {
+    "Authorization": "Bearer eyJ0eXBlIjoiSldUIiwiYWxnIjXXXXXXXXXXXXXXXXX",  # 使用你的实际API令牌代替
+    "Content-Type": "application/json"
+}
+response = requests.post(url, data=json.dumps(payload), headers=headers)
+
+# 打印原始响应，以便调试
+# print(response.text)
+
+# 解析JSON响应并直接提取content
+try:
+    response_json = response.json()
+    content = response_json['choices'][0]['message']['content']
+    print(content)
+except Exception as e:
+    print(f"Error extracting content: {str(e)}")
 
 
-# Store LLM generated responses
-if "messages" not in st.session_state.keys():
-    st.session_state.messages = [{"role": "assistant", "content": "你好，我是你的助手，有什么我可以帮助你的吗？"}]
 
-    # Display or clear chat messages
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.write(message["content"])
-
-def clear_chat_history():
-    st.session_state.messages = [{"role": "assistant", "content": "你好，我是你的助手，有什么我可以帮助你的吗？"}]
-
-st.sidebar.button('Clear Chat History', on_click=clear_chat_history)
-
-# Function for generating LLaMA2 response
-def generate_llama_index_response(prompt_input):
-    return greet2(prompt_input)
-
-# User-provided prompt
-if prompt := st.chat_input():
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.write(prompt)
-
-# Gegenerate_llama_index_response last message is not from assistant
-if st.session_state.messages[-1]["role"] != "assistant":
-    with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            response = generate_llama_index_response(prompt)
-            placeholder = st.empty()
-            placeholder.markdown(response)
-    message = {"role": "assistant", "content": response}
-    st.session_state.messages.append(message)
 ```
 
 之后运行
 
 ```bash
-streamlit run app.py
+streamlit run app_api.py
 ```
 
 然后在命令行点击，红框里的 url。
 
-![image](https://github.com/user-attachments/assets/dc1e0e8c-bec3-49ad-b522-44f14c64ea01)
+![image](https://github.com/user-attachments/assets/cf26ab6c-94af-4a89-a9d2-8ee744d70584)
+
 
 即可进入以下网页，然后就可以开始尝试问问题了。
 
-![1721404075545](https://github.com/user-attachments/assets/1f55ae89-2568-4cd5-8e50-564ed032d275)
+![image](https://github.com/user-attachments/assets/c33c0aa9-0541-4eff-a705-eb31db6f3481)
+
 
 询问结果为：
 
-![1721404159357](https://github.com/user-attachments/assets/6b479645-3bf6-4b94-b8e9-df4ea2e18530)
+![image](https://github.com/user-attachments/assets/14b1de1b-a325-4beb-bac9-d57eeecc7353)
+
 
 ## 6. 小结
 
-恭喜你，成功通关本关卡！继续加油！你成功使用 LlamaIndex 运行了 InternLM-2 1.8B 模型，并实现了知识库的构建与检索。这为管理和利用大规模知识库提供了强大的工具和方法。接下来，可以进一步优化和扩展功能，以满足更复杂的需求。
+恭喜你，成功通关本关卡！继续加油！你成功使用 LlamaIndex 调用API运行了 InternLM 模型，并实现了知识库的构建与检索。这为管理和利用大规模知识库提供了强大的工具和方法。接下来，可以进一步优化和扩展功能，以满足更复杂的需求。
 
 ## 7. 作业
 
